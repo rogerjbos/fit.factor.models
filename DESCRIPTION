@@ -1,0 +1,13 @@
+Package: fit.factor.models
+Type: Package
+Title: Factor models for attribution and risk
+Version: 0.0.1
+Author: Roger J. Bos
+Maintainer: Roger J. Bos <roger.bos@gmail.com>
+Description: Factor models for attribution and risk
+License: GPL-2
+Encoding: UTF-8
+LazyData: true
+Depends: data.table
+Imports: PerformanceAnalytics, robust, rrcov, reshape2
+RoxygenNote: 6.1.1

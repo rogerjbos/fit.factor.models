@@ -1,3 +1,4 @@
+.datatable.aware=TRUE
 library(PerformanceAnalytics)
 library(robust)
 library(rrcov)
@@ -7,7 +8,7 @@ library(rrcov)
 #' @name fit.balanced.panel
 #' @title fit.balanced.panel
 #' @encoding UTF-8
-#' @concept factor models for attribution and
+#' @concept factor models for attribution and risk
 #' @param .dates name of the data.table of rawdata
 #' @param .ids name of the identifier field that will be used for row names
 #' @param .dates name of the date field that will be used as column names
@@ -85,6 +86,8 @@ fit.data.cast <- function(datMat, item, id.var, date.var, reverse = FALSE) {
   return(x)
 }
 
+
+
 #' @description Function to calculate factor returns for portfolio attribution analysis.  The code has been adapted from the factorAnalyticsAddons package (Uthaisaad, 2017).
 #' @name fit.attribution
 #' @title fit.attribution
@@ -139,7 +142,7 @@ fit.attribution <- function(fitdata, date.var, id.var, return.var, exposure.vars
   rawReturns[is.na(rawReturns)] <- 0
   ids <- rawReturns[, 1]
   rawReturns <- rawReturns[, -1]
-  
+
   # Standardize the returns if stdReturn = TRUE
   if (stdReturn) {
     sdReturns <- apply(rawReturns, 1, sd, na.rm = TRUE)
@@ -161,9 +164,6 @@ fit.attribution <- function(fitdata, date.var, id.var, return.var, exposure.vars
   } else {
     fitdata[['returnStd']] <- fitdata[[return.var]]
   }
-  
-  #print(exposure.vars)
-  
   
   loadings <- fitdata[, ..exposure.vars]
   which.numeric <- sapply(loadings, is.numeric)
@@ -202,10 +202,12 @@ fit.attribution <- function(fitdata, date.var, id.var, return.var, exposure.vars
     
     # number of factors including Market and dummy variables
     factor.names <- c(exposures.num, paste(inds, sep = ""))
+    
   } else {
     factor.names <- exposures.num
   }
   
+
   # Determine factor model formula to be passed to lm
   # Remove Intercept as it introduces rank deficiency in the exposure matrix.
   fm.formula <- formula(paste("returnStd ~ -1 + ", paste(exposure.vars, collapse = "+")))
@@ -238,6 +240,8 @@ fit.attribution <- function(fitdata, date.var, id.var, return.var, exposure.vars
   residuals <- t(do.call("rbind", reg.list$residuals))
   colnames(residuals) <- as.character(Dates)
   rownames(residuals) <- id.names
+  
+  
   
   r2 <- reg.list$r2
   names(r2) <- as.character(Dates)
@@ -399,7 +403,7 @@ fit.contribution <- function(fit, bm.wgt.var, port.wgt.var) {
   index(returns_orig) <- as.POSIXct(index(returns_orig), tz=Sys.getenv("TZ"))
   tzone(returns_orig) <- Sys.getenv("TZ")
   returns.table <- rbind('Total Return' = Total.Return,
-                         table.AnnualizedReturns(returns_orig),
+                         PerformanceAnalytics::table.AnnualizedReturns(returns_orig),
                          maxDrawdown(returns_orig))
   returns.table$Active.Return <- returns.table$Portfolio.Return - returns.table$Benchmark.Return
   returns.table$Residual[1] <- returns.table$Active.Return[1] - sum(returns.table[1, 1:(match("Residual", names(returns.table))-1)])
