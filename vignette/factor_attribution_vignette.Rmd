@@ -15,7 +15,7 @@ knitr::opts_chunk$set(cache = TRUE)
 
 ### Motivation
 
-The R package *fit factor models* allows you to calculate factor based attribution and risk models on an equity portfolio (or universe).  There are many commercial providers of factor attribution and risk models, such as Axioma, Bloomberg, and Northfield Information Services, but all of them share a common property--A fixed set of factors provided by the vendor.  Commercial products usually do not provide the ability to change the factors used in the analysis.  This package allows the users to load their own set of custom factors.  Attribution (and/or risk models) could be run daily or monthly, using any combination of user supplied factors and/or industry assignments.  In addition, the simple approach and open source nature of this package make it ideal for pedagogical purposes.
+The R package *fit.factor.models* allows you to calculate factor based attribution and risk models on an equity portfolio (or universe).  There are many commercial providers of factor attribution and risk models, such as Axioma, Bloomberg, and Northfield Information Services, but all of them share a common property--A fixed set of factors provided by the vendor.  Commercial products usually do not provide the ability to change the factors used in the analysis.  This package allows the users to load their own set of custom factors.  Attribution (and/or risk models) could be run daily or monthly, using any combination of user supplied factors and/or industry assignments.  In addition, the simple approach and open source nature of this package make it ideal for pedagogical purposes.
 
 A word of caution is worthy here.  One of the reasons why the vendor attribution models (and risk models) use fixed factors is to make sure all the necessary categories are represented, such as industries, valuation, growth, momentum, etc.  This is important because both attribution and risk models use regression to determine the proportion of return attributable to each factor (or industry).  The summation of all these factor and industry returns is the attribution explained by the model.  Any portion of returns not explained by the model are thus labelled _stock specific_ return (or _unsystematic risk_ for risk models).  If the user included only non-relevant factors in the attribution, the output will show a high level of stock specific returns, but that may be misleading if it was due to non-relevant factors as opposed to a return stream that was different from that derived by standard and widely used factors.  Caveat emptor.
 
@@ -23,7 +23,7 @@ A word of caution is worthy here.  One of the reasons why the vendor attribution
 
 Portfolio attribution if performed via a factor model.  A factor model is a statistical model that attempts to explain complex phenomena through a small number of basic causes or factors.  
 
-There are two attribution functions in *fit factor models*.  The first one is fit.attribution.  The user passes in one large data.frame called *fitdata*, indicating which column represent the ids (`id.var`), dates (`date.var`), returns (`return.var`), and exposures (`exposure.vars`).  The function loops through the dates and estimates the factor model.  The regression coefficients from the factor model constitute the factor returns.
+There are two attribution functions in *fit.factor.models*.  The first one is fit.attribution.  The user passes in one large data.frame called *fitdata*, indicating which column represent the ids (`id.var`), dates (`date.var`), returns (`return.var`), and exposures (`exposure.vars`).  The function loops through the dates and estimates the factor model.  The regression coefficients from the factor model constitute the factor returns.
 
 $$ r_{i,t} = f_{t} \tilde{x}_{i, t-1} + \epsilon_{i,t} \quad i = 1,2,...,N, \quad t = 1, 2,..., T, $$
 
@@ -56,7 +56,9 @@ The periodic contributions from attribution cannot be cummulated to longer time 
 ```{r echo=FALSE, results="hide"}
 
 
-  load("fit.factor.models/data/Stock.df.Rdata")
+  # Example data is stored in the data/ folder, so it is automatically loaded.
+  # The stock data is from the factorAnalyticsAddons package example data.
+  # load("fit.factor.models/data/Stock.df.Rdata")
   stock <- as.data.table(stock)
   names(stock)
   
@@ -78,8 +80,8 @@ The periodic contributions from attribution cannot be cummulated to longer time 
 
   # Generate the output
   cfit <-fit.contribution(fit, bm.wgt.var = 'benchmarkWeight', port.wgt.var = 'portfolioWeight')
-  cfit_factors$returns
-  cfit_factors$returns.table
+  cfit$returns
+  cfit$returns.table
 
 ```
 
@@ -203,7 +205,7 @@ Here is the output of returns:
 
 ```{r}
 
-cfit_sectors$returns
+cfit$returns
 
 ```
 
@@ -213,12 +215,18 @@ The summary output is probably more relevant for us.  Here is the full output of
 
 ```{r} 
 
-cfit_sectors$returns.table
+cfit$returns.table
+
+
+cfit$returns.table$Residual[2]
+cfit$returns.table$Portfolio.Return[2]
+
+
 
 ```
 
 
-The best place to start with this output is the last few columns.  Those show the portfolio return, the benchmark return, and the active returns.  To reiterate what attribution does, it uses linear regression to estimate the returns for each factor, and then attributes those factor returns to the portfolio.  The regression explains as much of the active return as possible and the remainder, a plug, is put in the column called _residual_, also known as stock specific return.  We see that for this portfolio and time period that the residual explains about two thirds of the active return.  Some sectors had positive attribution and some had negative attribution, but the combined effect was small.  
+The best place to start with this output is the last few columns.  Those show the portfolio return, the benchmark return, and the active returns.  To reiterate what attribution does, it uses linear regression to estimate the returns for each factor, and then attributes those factor returns to the portfolio.  The regression explains as much of the active return as possible and the remainder, a plug, is put in the column called _residual_, also known as stock specific return.  We see that for this example portfolio (of three equally weighted technology stocks) that the residual return of `r cfit$returns.table$Residual[2]` explains almost all of the portfolio return of `r cfit$returns.table$Portfolio.Return[2]`, leaving very little explained by the factors, which is not suprpising given the factors that we used in this example.  Since all of the stocks in our example portfolio are in Technology and we included the sector classifications in our attribution, we should see a much large effect for Technology than the other sectors, and that does prove to be so.
 
 
 ### Risk Models
@@ -227,7 +235,7 @@ Risk models come in a number of varieties: fundamental, statistical, and hybrid.
 
 Statistical risk models, however, use a very different methodolog, based on principal component analysis (PCA).  PCA creates orthogonal portfolios (meaning they are statistically independent--uncorrelated) that describe various features of the return set and use those as factors (sometimes called blind factors).  The PCA algorithm finds what are called the eigenvectors and the eigenvalues.  The eigenvectors are the portfolio weights and the eigenvalues denote the explanatory power (the variance) of the eigenvectors.  The eigenvalues are used to order the eigenvectors so that the first principal component has the most explanatory power, the second principal component has the second most explanatory power, etc.  Being statistical in nature, the factors are not labelled, so interpretation can be difficult, but the first principal component will always be the market (beta).  The others are harder to tease out.  Statistical risk models are more often used in short-term trading environments where the factor importance and risk exposures can change rapidly and risk control is more important than interpretation.  
 
-A hybrid risk model combines fundamental factor with statistical (PCA) factors offering a compromise between the two methods.  A fully specified fundamental risk model can be run to include, say, five blind factors.  The blind factors will attempt to explain the residual return not explained by the fundamental factors in order to minimize the stock specific variation.  The package *fit factor models* can calculate fundamental, statistical, and hybrid risk models.  We will show examples of the first two. 
+A hybrid risk model combines fundamental factor with statistical (PCA) factors offering a compromise between the two methods.  A fully specified fundamental risk model can be run to include, say, five blind factors.  The blind factors will attempt to explain the residual return not explained by the fundamental factors in order to minimize the stock specific variation.  The package *fit.factor.models* can calculate fundamental, statistical, and hybrid risk models.  We will show examples of the first two. 
 
 Our fundamental risk model is a linear factor model regression that can be written in matrix form as:
 $$ r = \beta f + \epsilon $$
@@ -267,7 +275,7 @@ Using our microcap portfolio as an example, we need to input the returns matrix 
 ```{r}
 # Example 5
 
-r1 <- fit.data.cast(balanced, item='retVar', id.var = 'gvkey', date.var = 'datadate', reverse = TRUE)
+r1 <- fit.data.cast(stock, item='retVar', id.var = 'gvkey', date.var = 'datadate', reverse = TRUE)
 r1[is.na(r1)] <- 0
 head(r1)
 ```
@@ -605,7 +613,7 @@ knitr::kable(showIndustry(sect4, symbols))
 
 ```
 
-In this brief vignette we showed examples of portfolio attribution using custom factors.  We also showed how to calculate fundamental and statistical risk models using your custom factors.  Finally, we showed how to use k-means classification to derive industry assignments, even for instruments like ETFs that don't have natural industry assignments.  Even though assigning ETFs to industries may seem questionable, we show that the average correlation of ETFs within the same sector in which it was assigned is higher than the average correlation to ETFs in all the other sectors.  There is a lot more that can be done with this *fit factor model* package and we hope this has sparked some ideas on your end.
+In this brief vignette we showed examples of portfolio attribution using custom factors.  We also showed how to calculate fundamental and statistical risk models using your custom factors.  Finally, we showed how to use k-means classification to derive industry assignments, even for instruments like ETFs that don't have natural industry assignments.  Even though assigning ETFs to industries may seem questionable, we show that the average correlation of ETFs within the same sector in which it was assigned is higher than the average correlation to ETFs in all the other sectors.  There is a lot more that can be done with this *fit.factor.models* package and we hope this has sparked some ideas on your end.
 
 ### Appendix A: Risk Summary Formulas
 
@@ -621,10 +629,10 @@ where N is the number of stocks and K is the number of factors (fundamental fact
 The exposures are calculated by multiplying the weights ($W$) by the factor loadings ($\beta$).
 
 #### Portfolio Exposure (aka Managed Exposures)
-$$ Expo_{port} = W_{port} * \beta $$
+$$ Expo_{portfolio} = W_{portfolio} * \beta $$
 
 #### Benchmark Exposure
-$$ Expo_{bench} = W_{bench} * \beta $$
+$$ Expo_{benchmark} = W_{benchmark} * \beta $$
 
 #### Active Exposure
 $$ Expo_{active} = W_{active} * \beta $$
@@ -633,56 +641,56 @@ $$ Expo_{active} = W_{active} * \beta $$
 #### Absolute Risk (aka Total Risk)
 The absolute risk could be displayed in variance or standard deviation terms, but in risk models all the calculations are done in variance terms, so we just take the square root to display the more familiar scale of stand deviations.
 
-$$ AbsoluteRisk_{port} = \sqrt{ Expo_{port} * \Delta * Expo_{port}^T + \sum{W_{port}^2 * \Gamma^2} } $$
-$$ AbsoluteRisk_{bench} = \sqrt{ Expo_{bench} * \Delta * Expo_{bench}^T + \sum{W_{bench}^2 * \Gamma^2} } $$
+$$ AbsoluteRisk_{portfolio} = \sqrt{ Expo_{portfolio} * \Delta * Expo_{portfolio}^T + \sum{W_{portfolio}^2 * \Gamma^2} } $$
+$$ AbsoluteRisk_{benchmark} = \sqrt{ Expo_{benchmark} * \Delta * Expo_{benchmark}^T + \sum{W_{benchmark}^2 * \Gamma^2} } $$
 
 
 #### Marginal Factor Variance
-$$ MarginalFactorVariance = 2 * \Delta * Expo_{bench}^T $$
+$$ MarginalFactorVariance = 2 * \Delta * Expo_{benchmark}^T $$
 
 #### Factor Risk (Variance)
 $$ FactorRisk_{security} = W_{active} * \beta * \Delta * Expo_{active}^T $$
   
 At the portfolio level there are three equivalent ways of calculating the factor risk:  
-$$ FactorRisk_{port} = W_{active} * .5 * MarginalFactorVariance$$
-$$ FactorRisk_{port} = \sum{FactorRisk_{security}}$$
-$$ FactorRisk_{port} = W_{active} * \beta * \Delta * W_{active}^T * \beta $$
+$$ FactorRisk_{portfolio} = W_{active} * .5 * MarginalFactorVariance$$
+$$ FactorRisk_{portfolio} = \sum{FactorRisk_{security}}$$
+$$ FactorRisk_{portfolio} = W_{active} * \beta * \Delta * W_{active}^T * \beta $$
 
 #### Stock Specific Risk (Variance)
 $$ SSR_{security} = W_{active}^2 * \Gamma^2 $$
-$$ SSR_{port} = \sum{SSR_{security}} $$
+$$ SSR_{portfolio} = \sum{SSR_{security}} $$
 
 #### Total Risk (Variance)
-$$ TotalRisk_{security} = FactorRisk_{port} + SSR_{security} $$
-$$ TotalRisk_{port} = FactorRisk_{port} + SSR_{port} $$
+$$ TotalRisk_{security} = FactorRisk_{portfolio} + SSR_{security} $$
+$$ TotalRisk_{portfolio} = FactorRisk_{portfolio} + SSR_{portfolio} $$
 
 #### Predicted Tracking Error (Std Dev) (aka Active Risk)
 The predicted (ex ante) tracking error is just the square root of the total risk in variance terms and measures the expected volatility over the next 12 months, which may be higher or lower than the historical (ex post) tracking error.
-$$ TrackingError_{predicted} = \sqrt{TotalRisk_{port}} $$
+$$ TrackingError_{predicted} = \sqrt{TotalRisk_{portfolio}} $$
 
 #### R-Squared
 This measures the percent of the portfolio variance explained by the benchmark.
-$$ Rsquared = AbsoluteRisk_{port}^2 + AbsoluteRisk_{bench}^2 - TrackingError_{predicted}^2) / 2) / (AbsoluteRisk_{port} + AbsoluteRisk_{bench}))^2 $$
+$$ Rsquared = AbsoluteRisk_{portfolio}^2 + AbsoluteRisk_{benchmark}^2 - TrackingError_{predicted}^2) / 2) / (AbsoluteRisk_{portfolio} + AbsoluteRisk_{benchmark}))^2 $$
 
 #### Percent Factor Risk
 These measures allow us to break down the factor risk by security and by factor.
-$$ PercentFactorRisk_{security} = FactorRisk_{security} / TotalRisk_{port} $$
-$$  PercentFactorRisk_{port} = FactorRisk_{port} / TotalRisk_{port} $$
+$$ PercentFactorRisk_{security} = FactorRisk_{security} / TotalRisk_{portfolio} $$
+$$  PercentFactorRisk_{portfolio} = FactorRisk_{portfolio} / TotalRisk_{portfolio} $$
 $$  FactorRisk_{factor} = W_{active} * \beta * \Delta * W_{active} * \beta $$
-$$  PercentFactorRisk_{factor} = FactorRisk_{factor} / TotalRisk_{port} $$
+$$  PercentFactorRisk_{factor} = FactorRisk_{factor} / TotalRisk_{portfolio} $$
 
 ### Contribution to Tracking Error
-$$  contributionTE_{security} = TotalRisk_{security} / TotalRisk_{port} * TrackingError_{predicted} $$
+$$  contributionTE_{security} = TotalRisk_{security} / TotalRisk_{portfolio} * TrackingError_{predicted} $$
 
 #### Contribution to Tracking Error - Factor Contribution
-$$  contributionTE_{factor} = FactorRisk_{security} / TotalRisk_{port} * TrackingError_{predicted} $$
+$$  contributionTE_{factor} = FactorRisk_{security} / TotalRisk_{portfolio} * TrackingError_{predicted} $$
 
 #### Contribution to Tracking Error - Stock Specific Risk
-$$  contributionTE_{SSR} = SSR_{security} / TotalRisk_{port} * TrackingError_{predicted} $$
+$$  contributionTE_{SSR} = SSR_{security} / TotalRisk_{portfolio} * TrackingError_{predicted} $$
 
 #### Predicted Beta of the portfolio
 Given portfolio weights and benchmark weights, you can calculate the predicted beta by using the standard formula for beta and plugging in the outputs from the risk model: $\beta$, $\Delta$, and $\Gamma$.
-$$ PredictedBeta = \frac{W_{port}^T * \beta * \Delta * \beta^T * W_{bench} + W_{port}^T  * \Gamma * \Gamma * W_{bench}}{W_{bench}^T * \beta * \Delta * \beta^T * W_{bench} + W_{bench}^T * \Gamma * \Gamma * W_{bench}} $$
+$$ PredictedBeta = \frac{W_{portfolio}^T * \beta * \Delta * \beta^T * W_{benchmark} + W_{portfolio}^T  * \Gamma * \Gamma * W_{benchmark}}{W_{benchmark}^T * \beta * \Delta * \beta^T * W_{benchmark} + W_{benchmark}^T * \Gamma * \Gamma * W_{benchmark}} $$
 
 
 

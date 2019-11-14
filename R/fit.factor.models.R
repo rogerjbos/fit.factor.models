@@ -1,7 +1,6 @@
 .datatable.aware=TRUE
 library(PerformanceAnalytics)
 library(robust)
-library(rrcov)
 
 #' Function to create a balanced data set (same number of observatons in each month)
 #'
@@ -188,32 +187,30 @@ fit.attribution <- function(fitdata, date.var, id.var, return.var, exposure.vars
       fitdata[[i]] <- std.expo.num
     }
   }
-  
+
   if (length(exposures.char)) {
-    
+
     # Add groups to fitdata for use in attribution function
     inds <- sort(unique(fitdata[[exposures.char]]))
-    suppressWarnings(fitdata[, (inds) := lapply(inds, function(x) get(exposures.char) == x)])
-    #fitdata[, (inds) := lapply(inds, function(x) ifelse(get(exposures.char) == x, 1, 0))]
-    
+    suppressWarnings(fitdata[, (inds) := lapply(inds, function(x) ifelse(get(exposures.char) == x, 1, 0))])
+
     contrasts.list <- lapply(seq(length(exposures.char)), function(i)
       function(n) contr.treatment(n, contrasts = FALSE))
     names(contrasts.list) <- exposures.char
-    
+
     # number of factors including Market and dummy variables
     factor.names <- c(exposures.num, paste(inds, sep = ""))
-    
+
   } else {
     factor.names <- exposures.num
   }
-  
 
   # Determine factor model formula to be passed to lm
   # Remove Intercept as it introduces rank deficiency in the exposure matrix.
   fm.formula <- formula(paste("returnStd ~ -1 + ", paste(exposure.vars, collapse = "+")))
-  
+
   fit.lm <- function(mdate) {
-    
+
     # mdate = '2003-08-29'
     cols <- c(date.var, id.var, 'returnStd', exposure.vars, 'W')
     load <- fitdata[fitdata[[date.var]] == mdate, ..cols]
@@ -226,32 +223,30 @@ fit.attribution <- function(fitdata, date.var, id.var, return.var, exposure.vars
     # print(mdate)
     return(list(coef = list(mod$coefficients), residuals = list(mod$residuals), r2 = summary(mod)$r.squared))
   }
-  
+
   fitdata[, W := 1]
   fitdata[, tmp_datadate := fitdata[[date.var]]]
   reg.list <- fitdata[, fit.lm(tmp_datadate), by = tmp_datadate]
   fitdata[, tmp_datadate := NULL]
-  
+
   # time series of factor returns = estimated coefficients in each period
   # rbind the list tolerating column name changes / missing
   # https://stackoverflow.com/questions/16962576/how-can-i-rbind-vectors-matching-their-column-names
   factor.returns <- do.call(rbind, lapply(reg.list$coef, function(x) x[match(names(reg.list$coef[[1]]), names(x))]))
-  
+
   residuals <- t(do.call("rbind", reg.list$residuals))
   colnames(residuals) <- as.character(Dates)
   rownames(residuals) <- id.names
-  
-  
-  
+
   r2 <- reg.list$r2
   names(r2) <- as.character(Dates)
-  
+
   # exposure matrix B or beta for the last time period - N x K
   cols <- c(date.var, 'returnStd', exposure.vars)
   loadings <- fitdata[fitdata[[date.var]] == max(alldates), ..cols]
   beta <- model.matrix(fm.formula, data=loadings)
   rownames(beta) <- id.names
-  
+
   # Try to make sure matrices confirm, remove any column that has NAs for the most recent time period
   beta.names <- data.frame(desc = colnames(beta))
   tmp <- merge(t(factor.returns), beta.names, by.x=0, by.y='desc', all.y=TRUE)
@@ -260,38 +255,29 @@ fit.attribution <- function(fitdata, date.var, id.var, return.var, exposure.vars
   colnames(factor.returns.fixed) <- tmp.names
   factor.returns.fixed[is.na(factor.returns.fixed)] <- 0
   factor.returns <- factor.returns.fixed
-  
+
   stopifnot(all(colnames(factor.returns) %in% colnames(beta)))
-  
+
   # Shorten the Sector / Country names
   if (length(exposures.char) > 0) {
     colnames(beta) = gsub(exposures.char, "", colnames(beta))
     colnames(factor.returns) <- gsub(exposures.char, "", colnames(factor.returns))
   }
   if (length(exposure.vars) > 1) rownames(factor.returns) <- as.character(Dates)
-  
+
   # factor and residual covariances
-  if (require('rrcov')) {
-    factor.cov <- CovOgk(factor.returns)$cov
-  } else {
-    factor.cov <- cov(factor.returns)
-  }
-  
+  factor.cov <- cov(factor.returns)
   resid.var <- try(apply(coredata(residuals), 1, var))
   if (full.resid.cov) {
-    if (require('rrcov')) {
-      resid.cov <- CovOgk(residuals)$cov
-    } else {
-      resid.cov <- cov(residuals)
-    }
+    resid.cov <- cov(residuals)
   } else {
     resid.cov <- try(diag(resid.var))
   }
-  
+
   # return covariance estimated by the factor model
   # (here beta corresponds to the exposure of last time period, TP)
   return.cov <- beta %*% t(factor.cov) %*% t(beta) + resid.cov
-  
+
   # Create list of return values.
   return(list(beta = beta,
               factor.returns = factor.returns,
@@ -311,6 +297,8 @@ fit.attribution <- function(fitdata, date.var, id.var, return.var, exposure.vars
               id.names = id.names,
               factor.names = factor.names,
               time.periods = TP))
+
+
   
 }
 
@@ -404,7 +392,7 @@ fit.contribution <- function(fit, bm.wgt.var, port.wgt.var) {
   tzone(returns_orig) <- Sys.getenv("TZ")
   returns.table <- rbind('Total Return' = Total.Return,
                          PerformanceAnalytics::table.AnnualizedReturns(returns_orig),
-                         maxDrawdown(returns_orig))
+                         PerformanceAnalytics::maxDrawdown(returns_orig))
   returns.table$Active.Return <- returns.table$Portfolio.Return - returns.table$Benchmark.Return
   returns.table$Residual[1] <- returns.table$Active.Return[1] - sum(returns.table[1, 1:(match("Residual", names(returns.table))-1)])
   
@@ -769,7 +757,7 @@ fit.risk.summary.report <- function(riskmod, bm.wgt.var, port.wgt.var, filename 
   # Ending Active Exposure
   expo.active <- wgt[, activeWgt] %*% fact.load
   
-  # Absolute Risk (Std Dev)
+  # Absolute Risk (Std Dev) - scale by multi to annualize
   AR.P = as.vector(sqrt(expo.port %*% factcov %*% t(expo.port) + sum(wgt[, portWgt]^2  %*% specific.risk^2))) * multi
   AR.B = as.vector(sqrt(expo.bench %*% factcov %*% t(expo.bench) + sum(wgt[, benchWgt]^2 %*% specific.risk^2))) * multi
   
@@ -788,8 +776,8 @@ fit.risk.summary.report <- function(riskmod, bm.wgt.var, port.wgt.var, filename 
   TR.S <- FR.S + SSR.S
   TR.P <- FR.P + SSR.P
   
-  # Predicted Tracking Error (Std Dev)
-  TE <- sqrt(TR.P)
+  # Predicted Tracking Error (Std Dev) - scale by multi to annualize
+  TE <- sqrt(TR.P) * multi
   
   # R-Squared
   R2 <- (((AR.P^2 + AR.B^2 - TE^2) / 2) / (AR.P + AR.B))^2

@@ -9,5 +9,5 @@ License: GPL-2
 Encoding: UTF-8
 LazyData: true
 Depends: data.table
-Imports: PerformanceAnalytics, robust, rrcov, reshape2
+Imports: PerformanceAnalytics, robust, reshape2
 RoxygenNote: 6.1.1
