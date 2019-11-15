@@ -76,7 +76,7 @@ The periodic contributions from attribution cannot be cummulated to longer time 
   fit <- fit.attribution(fitdata = stock, date.var = 'DATE', id.var = 'TICKER', return.var = 'RETURN',
                          exposure.vars = exposure.vars, weight.var = 'LOG.MARKETCAP',
                          rob.stats = TRUE, full.resid.cov = FALSE, z.score = FALSE,
-                         stdReturn = TRUE, resid.EWMA = TRUE)
+                         stdReturn = FALSE, resid.EWMA = FALSE)
 
   # Generate the output
   cfit <-fit.contribution(fit, bm.wgt.var = 'benchmarkWeight', port.wgt.var = 'portfolioWeight')
@@ -97,11 +97,10 @@ exposure.vars <- c('NET.SALES','BOOK2MARKET','GICS.SECTOR')
 fit <- fit.attribution(fitdata = stock, date.var = 'DATE', id.var = 'TICKER', return.var = 'RETURN',
                        exposure.vars = exposure.vars, weight.var = 'LOG.MARKETCAP',
                        rob.stats = TRUE, full.resid.cov = FALSE, z.score = FALSE,
-                       stdReturn = TRUE, resid.EWMA = TRUE)
+                       stdReturn = FALSE, resid.EWMA = TRUE)
 ```
 
-All the necessary data is passed to *fitdata* and the user also has to pass in all the important column names, such as date (`date.var`), id (`id.var`), returns (`return.var`), and exposures (`exposure.vars`).  It is usual for the factors to be cross-sectional standardized so they have a mean of zero and a standard deviation of one for each time period.  This aids in comparability over time.  The *fit.attribution* function can do this for you by setting `z.score = TRUE`.  In our example we set `z.score = FALSE` because the data is already standardized outside of the function.  You could standardize the returns as well, but we don't do that because then you lose the interpret-ability (the output would be in standard deviation terms instead of raw returns).  The option `full.resid.cov = TRUE` estimates the full residual covariance matrix, but this calculation can be slow.  Setting this option to false returns the diagonal matrix and is much quicker. 
-
+All the necessary data is passed into the function via the *fitdata* data.frame/data.table object, and the user also has to pass in all the important column names, such as date (`date.var`), id (`id.var`), returns (`return.var`), and exposures (`exposure.vars`).  It is usual for the factors to be cross-sectional standardized so they have a mean of zero and a standard deviation of one for each time period.  This aids in comparability over time.  The *fit.attribution* function can do this for you by setting `z.score = TRUE`.  In our example we set `z.score = FALSE` because the example data is already standardized outside of the function.  You could standardize the returns as well, but we don't do that because then you lose the interpretability (the output would be in standard deviation terms instead of raw returns).  The option `full.resid.cov = TRUE` estimates the full residual covariance matrix, but this calculation can be slow.  Setting this option to false returns the diagonal matrix and is computationally quicker. 
 
 We can look at the first 10 observations of input data to get an idea of what the data looks like:
 ```{r} 
@@ -112,7 +111,6 @@ cols <- c('DATE', 'TICKER', 'RETURN', exposure.vars)
 stock[1:10, ..cols]
 
 ```
-
 
 The function outputs are as follows:
 
@@ -214,15 +212,7 @@ We ran the attribution from 8/31/2019 to 9/16/2019, so we see a line for each da
 The summary output is probably more relevant for us.  Here is the full output of returns.table: 
 
 ```{r} 
-
 cfit$returns.table
-
-
-cfit$returns.table$Residual[2]
-cfit$returns.table$Portfolio.Return[2]
-
-
-
 ```
 
 
@@ -264,40 +254,14 @@ In the above, K is the number of factors, which is mere hundreds and much smalle
 
 #### Fundamental Risk Model Example
 
-We can fit a fundamental risk model as follows.
-
-```
-fit.fundamental(retMat, factor.loadings, calc.inv = FALSE)
-```
-
-Using our microcap portfolio as an example, we need to input the returns matrix (retMat) and the factor loadings (factor.loadings).  Currently, the returns matrix needs to be N x T with the most recent observation first.  We can use the function _fit.data.cast()_ to format our data as such:
+We can estimate the fundamental risk model using th built in dataset and see what objects are returned.
 
 ```{r}
-# Example 5
+# Example 4
 
-r1 <- fit.data.cast(stock, item='retVar', id.var = 'gvkey', date.var = 'datadate', reverse = TRUE)
-r1[is.na(r1)] <- 0
-head(r1)
-```
-
-
-For the sake of simplicity, we can use the factor loadings matrix returned by the _fit.attribution()_ function.
-
-```{r}
-# Example 6
-
-load <- fit$beta
-dim(load)
-head(load)
-```
-
-
-Once we have all the necessary ingredients, we can estimate the fundamental risk model and see what is returned.
-
-```{r}
-# Example 7
-
-riskmod <- fit.fundamental(retMat = as.matrix(r1), factor.loadings = load, calc.inv = FALSE)
+riskmod <- fit.fundamental(fitdata = stock, date.var = 'DATE', id.var = 'TICKER', return.var = 'RETURN',
+  weight.var = 'LOG.MARKETCAP', exposure.vars = c('NET.SALES','BOOK2MARKET','GICS.SECTOR'),
+  rob.stats = TRUE, z.score = FALSE, stdReturn = TRUE, calc.inv = TRUE, cov.wgt = FALSE, parkinson = FALSE)
 names(riskmod)
 ```
 
@@ -342,11 +306,26 @@ riskmod$cov.mat[1:5, 1:5]
 We can fit a statistical risk model as follows.
 
 ```
-# Example 8
 
-riskmod <- fit.statistical(r1, use.cor = TRUE)
-names(riskmod)
+Using our microcap portfolio as an example, we need to input the returns matrix (retMat) and the factor loadings (factor.loadings).  Currently, the returns matrix needs to be N x T with the most recent observation first.  We can use the function _fit.data.cast()_ to format our data as such:
+
+```{r}
+# Example 5
+
+retMat <- fit.data.cast(stock, item='RETURN', id.var = 'TICKER', date.var = 'DATE')
+# Replace NAs with zero to prevent errors when fitting the risk model
+retMat[is.na(retMat)] <- 0
+head(retMat)
+
+# reverse = TRUE will change the order of the dates, but the risk model outcome is the same.
+retMat <- fit.data.cast(stock, item='RETURN', id.var = 'TICKER', date.var = 'DATE', reverse = TRUE)
+retMat[is.na(retMat)] <- 0
+head(retMat)
+
+riskmod <- fit.statistical(retMat)
+
 ```
+
 Notice that all we had to pass into the function was the returns matrix (that we generated earlier).  The PCA algorithm finds the orthogonal portfolios (eigenvectors) and orders them by explanatory power (eigenvalues).  The eigenvectors can be constructed from the covariance matrix (`use.cor = FALSE`) or the correlation maxtrix (`use.cor = TRUE`).  The results will differ.  The output variables of *fit.statistical* are very similar.
 
 The output *specific.risk* shows the stock specific volatility as estimate by the risk model.  It is a vector of length `r length(riskmod$specific.risk)`.
@@ -377,249 +356,13 @@ dim(riskmod$cov.mat)
 riskmod$cov.mat[1:5, 1:4]
 ```
 
-
-#### Sector / Group / Industry Classification
-
-There is also a function that uses the R function `kmeans` to determine sector, group, and industry classifications. `kmeans` is a K-nearest neighbor algorithm that classifies objects based on average distance to centers (`k` specifies the number of centers).  The user specifies how many centers (classifications) they want and kmeans attempts to find the centers that result in grouping the observations nearest to those centers.  The number of centers returns may be less than the specified k, but will never be more than k.
-
-As an example, we will load some price data for 123 ETFs to classify them into sectors, groups, and industries.
-
-```{r echo=FALSE, results="hide"}
-
-load("/media/research/R_HOME/etfs/fma_rawdata.Rdata")
-
-initDate <- "2000-01-01"
-symbols <- as.character(unique(fma_rawdata$ETF))
-idx <- symbols %in% ls()
-newsym <- symbols[!idx] 
-go <- try(getSymbols(newsym, from = initDate))
-
-adjusted <- list()
-open <- list()
-high <- list()
-low <- list()
-close <- list()
-ret <- list()
-volume <- list()
-for(i in 1:length(symbols)) {
-  ai <- try(Ad(get(symbols[i])), silent=TRUE)
-  oi <- try(Op(get(symbols[i])), silent=TRUE)
-  hi <- try(Hi(get(symbols[i])), silent=TRUE)
-  li <- try(Lo(get(symbols[i])), silent=TRUE)
-  ci <- try(Cl(get(symbols[i])), silent=TRUE)
-  vi <- try(Vo(get(symbols[i])), silent=TRUE)
-  names(ai) <- names(oi) <- names(hi) <- names(li) <- names(ci) <- names(vi) <- symbols[i]
-  adjusted[[i]] <- ai
-  open[[i]] <- oi
-  high[[i]] <- hi
-  low[[i]] <- li
-  close[[i]] <- ci
-  ret[[i]] <- ci / lag(ci) - 1
-  volume[[i]] <- vi
-}
-adjusted <- t(do.call(cbind, adjusted))
-adjusted <- adjusted[, ncol(adjusted):1]
-
-open <- t(do.call(cbind, open))
-open <- open[, ncol(open):1]
-
-high <- t(do.call(cbind, high))
-high <- high[, ncol(high):1]
-
-low <- t(do.call(cbind, low))
-low <- low[, ncol(low):1]
-
-close <- t(do.call(cbind, close))
-close <- close[, ncol(close):1]
-
-ret <- t(do.call(cbind, ret))
-ret <- ret[, ncol(ret):1]
-ret[is.na(ret)] <- 0
-
-volume <- t(do.call(cbind, volume))
-volume <- volume[, ncol(volume):1]
-
-i <- 1
-retMat <- as.matrix(ret[, i:(i + 252)])
-
-k <- c(30, 20, 10)
-ind.list <- fit.stat.ind.class.all(retMat = retMat, 
-                                   k = k, 
-                                   iter.max = 100, 
-                                   num.try = 100,
-                                   do.demean = c(FALSE, FALSE, FALSE),
-                                   norm.cl.ret = TRUE)
-ind <- ind.list[[1]]
-grp <- ind.list[[2]]
-sect <- ind.list[[3]]
-knitr::kable(showIndustry(sect, symbols))
-
-ind.list <- fit.cluster.all(retMat = retMat, k = k)
-ind2 <- ind.list[[1]]
-grp2 <- ind.list[[2]]
-sect2 <- ind.list[[3]]
-knitr::kable(showIndustry(sect2, symbols))
-
-
-ind.list <- fit.cluster.all(retMat = retMat, k = k, method="rcpp")
-ind3 <- ind.list[[1]]
-grp3 <- ind.list[[2]]
-sect3 <- ind.list[[3]]
-knitr::kable(showIndustry(sect3, symbols))
-
-ind.list <- fit.cluster.all(retMat = retMat, k = k, method="medoids")
-ind4 <- ind.list[[1]]
-grp4 <- ind.list[[2]]
-sect4 <- ind.list[[3]]
-knitr::kable(showIndustry(sect4, symbols))
-
-# ind <- fit.stat.ind.class(retMat = retMat, k = 3)
-# mh(ind)
-# ind.cluster <- fit.cluster.kmeans(retMat = retMat, k = 3)
-# mh(ind.cluster)
-# ind.rcpp <- fit.cluster.rcpp(retMat = retMat, k = 3)
-# mh(ind.rcpp)
-# ind.me <- fit.cluster.medoids(retMat = retMat, k = 3)
-# mh(ind.me)
-
-#mh(ind.list)
-
-# ind <- ind.list[[3]]
-# showIndustry(ind, symbols)
-
-# ind.list <- fit.stat.ind.class.dyn(retMat = retMat,
-#                                    p = 2,
-#                                    iter.max = 10,
-#                                    num.try = 100,
-#                                    top.down = TRUE)
-# mh(ind.list)  
-
-# e <- fit.calc.eigen(retMat = retMat,
-#                            k = 10,
-#                            prec = .001)
-
-
-# ind.list <- fit.stat.clust.all(retMat = retMat,
-#                                k = k,
-#                                do.demean = rep(FALSE, length(k)),
-#                                norm.cl.ret = TRUE)
-
-# ind.list.imp  <- fit.improve.ind.class(retMat = retMat,
-#                                        ind = ind.list[[1]],
-#                                        iter.max = 10,
-#                                        num.try = 100)
-# mh(ind.list.imp)  
-# mh(ind.list[[1]])
-
-# rr <- fit.general.heterotic(retMat = ret, ind = ind.list, mkt.fac = mkt.fac, rm.sing.tkr = rm.sing.tkr, p = p,
-#                             append.style = append.style, k.style = k.style, style = style)
-# rr <- fit.heterotic(retMat = ret, ind = ind.list, mkt.fac = TRUE, rm.sing.tkr = TRUE) 
-# 
-# names(rr)
-# mh(rr$specific.risk)
-# mh(rr$factor.cov)
-# mh(rr$factor.loadings)
-# mh(rr$cov.mat)
-# mh(rr$inverse.cov)
-
-```  
-  
-We downloaded daily prices for the 80+ ETFs and calculated the daily returns.  Here is a sample of the returns matrix for the most recent one year of data.
-
-```{r}
-# Example 9
-
-i <- 1
-retMat <- as.matrix(ret[, i:(i + 252)])
-dim(retMat)
-retMat[1:5, 1:5]
-```
-
-We use the function *fit.stat.ind.class.all* to perform the k-means classification.  The only data it needs is the return matrix.  One year of daily data should be sufficient to get reasonable results.  We use the variable `k` to specify how many groupings we want.  `k` can be a scalar (if you only want one grouping) or a vector (if you want multiple groupings).  We will ask for three groupings: 30, 20, and 10.  We will call them industry, group, and sector.
-
-```{r}
-# Example 10
-
-k <- c(30, 20, 10)
-ind.list <- fit.stat.ind.class.all(retMat = retMat, 
-                                   k = k, 
-                                   iter.max = 100, 
-                                   num.try = 100,
-                                   do.demean = c(FALSE, FALSE, FALSE),
-                                   norm.cl.ret = TRUE)
-```
-Here is a sample of the resulting industry assignment.
-
-```{r}
-ind <- ind.list[[1]]
-rownames(ind) <- symbols
-dim(ind)
-head(ind)
-```
-We asked for 30 industries and we got `r dim(ind)[2]`.
-
-Here is a sample of the resulting group assignment.
-
-```{r}
-grp <- ind.list[[2]]
-rownames(grp) <- symbols
-dim(grp)
-head(grp)
-```
-We asked for 20 groups and we got `r dim(grp)[2]`.
-  
-Here is a sample of the resulting sector assignment.
-
-```{r}
-sect <- ind.list[[3]]
-dim(sect)
-head(sect)
-```
-We asked for 10 sectors and we got `r dim(sect)[2]`.
-  
-How good are these groupings?  Are they even reasonable?  To try to answer this question, we created a simple function that, for each security (ETF in this case), calculates the average correlation of that security to all others in the same group (_Cor_same_) and calculates the average correlation of that security to all the others in the different groups (_Cor_other_).  As expected, the average correlations in the _Cor_same_ column are higher (sometimes much higher) than the average correlations in the _Cor_other_ column.
-
-```{r}
-# Example 11
-
-showIndustry <- function(ind, symbols) {
-  out <- list()
-  for (i in 1:ncol(ind)) {
-    
-    #print("Industry " %+% i)
-    ii <- ind[, i]==1
-    n <- sum(ii)
-    if (n > 1) {
-      ids <- symbols[ii]
-      ri <- retMat[ii, ]
-      same_sector <- cor(t(ri), t(ri))
-      other_sector <- cor(t(retMat[ii==FALSE, ]), t(ri))
-      Cor_same <- colMeans(same_sector)
-      Cor_other <- colMeans(other_sector)
-      tmp <- data.frame(Industry=rep(i, n), symbol=ids, Cor_same, Cor_other)
-      out[[i]]  <- tmp
-    }
-  }
-  out <- rbindlist(out)
-  out <- rbind(out, data.frame(Industry=0, symbol="average", Cor_same=g(mean(out$Cor_same)), Cor_other=g(mean(out$Cor_other))))
-  out
-  
-}
-
-knitr::kable(showIndustry(sect, symbols))
-knitr::kable(showIndustry(sect2, symbols))
-knitr::kable(showIndustry(sect3, symbols))
-knitr::kable(showIndustry(sect4, symbols))
-
-```
-
-In this brief vignette we showed examples of portfolio attribution using custom factors.  We also showed how to calculate fundamental and statistical risk models using your custom factors.  Finally, we showed how to use k-means classification to derive industry assignments, even for instruments like ETFs that don't have natural industry assignments.  Even though assigning ETFs to industries may seem questionable, we show that the average correlation of ETFs within the same sector in which it was assigned is higher than the average correlation to ETFs in all the other sectors.  There is a lot more that can be done with this *fit.factor.models* package and we hope this has sparked some ideas on your end.
+In this brief vignette we showed examples of portfolio attribution using custom factors.  We also showed how to calculate fundamental and statistical risk models using your custom factors.  There is a lot more that can be done with the *fit.factor.models* package and we hope this has sparked some ideas on your end.
 
 ### Appendix A: Risk Summary Formulas
 
-In this appendix we will describe all the formulas used to calculate the metrics returned by the fit.risk.summary.report function.  The following inputs will come from either a statistical risk model (via the fit.statistical() function) or a fundamental risk model (via the fit.fundamental() function):
+In this appendix we will describe all the formulas used to calculate the metrics returned by the fit.risk.summary.report function.  The following inputs will come from either a statistical risk model (via the _fit.statistical()_ function) or a fundamental risk model (via the _fit.fundamental()_ function):
 
-$\Gamma$ (specific.risk) is a vector of length N,
+$\Psi$ (specific.risk) is a vector of length N,
 $\Omega$ (covmat) is a N x N matrix or variance and covariances,
 $\Delta$ (factcov) is a K x K matrix of factor coariances, and 
 $\beta$ (fact.load) is the N x K matrix of factor exposures (loadings),
@@ -641,8 +384,8 @@ $$ Expo_{active} = W_{active} * \beta $$
 #### Absolute Risk (aka Total Risk)
 The absolute risk could be displayed in variance or standard deviation terms, but in risk models all the calculations are done in variance terms, so we just take the square root to display the more familiar scale of stand deviations.
 
-$$ AbsoluteRisk_{portfolio} = \sqrt{ Expo_{portfolio} * \Delta * Expo_{portfolio}^T + \sum{W_{portfolio}^2 * \Gamma^2} } $$
-$$ AbsoluteRisk_{benchmark} = \sqrt{ Expo_{benchmark} * \Delta * Expo_{benchmark}^T + \sum{W_{benchmark}^2 * \Gamma^2} } $$
+$$ AbsoluteRisk_{portfolio} = \sqrt{ Expo_{portfolio} * \Delta * Expo_{portfolio}^T + \sum{W_{portfolio}^2 * \Psi^2} } $$
+$$ AbsoluteRisk_{benchmark} = \sqrt{ Expo_{benchmark} * \Delta * Expo_{benchmark}^T + \sum{W_{benchmark}^2 * \Psi^2} } $$
 
 
 #### Marginal Factor Variance
@@ -657,7 +400,7 @@ $$ FactorRisk_{portfolio} = \sum{FactorRisk_{security}}$$
 $$ FactorRisk_{portfolio} = W_{active} * \beta * \Delta * W_{active}^T * \beta $$
 
 #### Stock Specific Risk (Variance)
-$$ SSR_{security} = W_{active}^2 * \Gamma^2 $$
+$$ SSR_{security} = W_{active}^2 * \Psi^2 $$
 $$ SSR_{portfolio} = \sum{SSR_{security}} $$
 
 #### Total Risk (Variance)
@@ -689,8 +432,8 @@ $$  contributionTE_{factor} = FactorRisk_{security} / TotalRisk_{portfolio} * Tr
 $$  contributionTE_{SSR} = SSR_{security} / TotalRisk_{portfolio} * TrackingError_{predicted} $$
 
 #### Predicted Beta of the portfolio
-Given portfolio weights and benchmark weights, you can calculate the predicted beta by using the standard formula for beta and plugging in the outputs from the risk model: $\beta$, $\Delta$, and $\Gamma$.
-$$ PredictedBeta = \frac{W_{portfolio}^T * \beta * \Delta * \beta^T * W_{benchmark} + W_{portfolio}^T  * \Gamma * \Gamma * W_{benchmark}}{W_{benchmark}^T * \beta * \Delta * \beta^T * W_{benchmark} + W_{benchmark}^T * \Gamma * \Gamma * W_{benchmark}} $$
+Given portfolio weights and benchmark weights, you can calculate the predicted beta by using the standard formula for beta and plugging in the outputs from the risk model: $\beta$, $\Delta$, and $\Psi$.
+$$ PredictedBeta = \frac{W_{portfolio}^T * \beta * \Delta * \beta^T * W_{benchmark} + W_{portfolio}^T  * \Psi * \Psi * W_{benchmark}}{W_{benchmark}^T * \beta * \Delta * \beta^T * W_{benchmark} + W_{benchmark}^T * \Psi * \Psi * W_{benchmark}} $$
 
 
 

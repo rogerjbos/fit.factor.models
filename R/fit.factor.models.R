@@ -400,7 +400,7 @@ fit.contribution <- function(fit, bm.wgt.var, port.wgt.var) {
 }
 
 #' @description Function to calculate fundamental risk model. The code has been adapted from Kakushadze and Yu (2016).
-#' @name fit.attribution
+#' @name fit.fundamental
 #' @encoding UTF-8
 #' @concept factor models for attribution and risk
 #' @param date.var string name of the date column
@@ -425,11 +425,10 @@ fit.contribution <- function(fit, bm.wgt.var, port.wgt.var) {
 #' *fitdata* is the matrix of input data.
 #'
 #' @examples
-#' load("data/Stock.df.Rdata")
-#' fit <- fit.attribution(fitdata = stock, date.var = 'DATE', id.var = 'TICKER', return.var = 'RETURN',
-#'   weight.var = 'LOG.MARKETCAP', exposure.vars = c('NET.SALES','BOOK2MARKET','GICS.SECTOR'),
-#'   rob.stats = TRUE, full.resid.cov = FALSE, z.score = FALSE,
-#'   stdReturn = TRUE, resid.EWMA = TRUE)
+#' load("fit.factor.models/data/Stock.df.Rdata")
+#' fit <- fit.fundamental(fitdata = stock, date.var = 'DATE', id.var = 'TICKER', return.var = 'RETURN',
+#'                        weight.var = 'LOG.MARKETCAP', exposure.vars = c('NET.SALES','BOOK2MARKET','GICS.SECTOR'),
+#'                        rob.stats = TRUE, z.score = FALSE, stdReturn = TRUE, calc.inv = TRUE, cov.wgt = FALSE, parkinson = FALSE)
 #' @references Kakushadze, Zura and Yu, Willie, Multifactor Risk Models and Heterotic CAPM (January 24, 2016). The Journal of Investment Strategies 5(4) (2016) 1-49. Available at SSRN: \url{https://ssrn.com/abstract=2722093}
 #' @author Roger J. Bos, \email{roger.bos@@gmail.com}
 #' @export
