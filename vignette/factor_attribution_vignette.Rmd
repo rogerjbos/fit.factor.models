@@ -76,7 +76,7 @@ The periodic contributions from attribution cannot be cummulated to longer time 
   fit <- fit.attribution(fitdata = stock, date.var = 'DATE', id.var = 'TICKER', return.var = 'RETURN',
                          exposure.vars = exposure.vars, weight.var = 'LOG.MARKETCAP',
                          rob.stats = TRUE, full.resid.cov = FALSE, z.score = FALSE,
-                         stdReturn = TRUE, resid.EWMA = TRUE)
+                         stdReturn = FALSE, resid.EWMA = FALSE)
 
   # Generate the output
   cfit <-fit.contribution(fit, bm.wgt.var = 'benchmarkWeight', port.wgt.var = 'portfolioWeight')
@@ -97,11 +97,10 @@ exposure.vars <- c('NET.SALES','BOOK2MARKET','GICS.SECTOR')
 fit <- fit.attribution(fitdata = stock, date.var = 'DATE', id.var = 'TICKER', return.var = 'RETURN',
                        exposure.vars = exposure.vars, weight.var = 'LOG.MARKETCAP',
                        rob.stats = TRUE, full.resid.cov = FALSE, z.score = FALSE,
-                       stdReturn = TRUE, resid.EWMA = TRUE)
+                       stdReturn = FALSE, resid.EWMA = TRUE)
 ```
 
-All the necessary data is passed to *fitdata* and the user also has to pass in all the important column names, such as date (`date.var`), id (`id.var`), returns (`return.var`), and exposures (`exposure.vars`).  It is usual for the factors to be cross-sectional standardized so they have a mean of zero and a standard deviation of one for each time period.  This aids in comparability over time.  The *fit.attribution* function can do this for you by setting `z.score = TRUE`.  In our example we set `z.score = FALSE` because the data is already standardized outside of the function.  You could standardize the returns as well, but we don't do that because then you lose the interpret-ability (the output would be in standard deviation terms instead of raw returns).  The option `full.resid.cov = TRUE` estimates the full residual covariance matrix, but this calculation can be slow.  Setting this option to false returns the diagonal matrix and is much quicker. 
-
+All the necessary data is passed into the function via the *fitdata* data.frame/data.table object, and the user also has to pass in all the important column names, such as date (`date.var`), id (`id.var`), returns (`return.var`), and exposures (`exposure.vars`).  It is usual for the factors to be cross-sectional standardized so they have a mean of zero and a standard deviation of one for each time period.  This aids in comparability over time.  The *fit.attribution* function can do this for you by setting `z.score = TRUE`.  In our example we set `z.score = FALSE` because the example data is already standardized outside of the function.  You could standardize the returns as well, but we don't do that because then you lose the interpretability (the output would be in standard deviation terms instead of raw returns).  The option `full.resid.cov = TRUE` estimates the full residual covariance matrix, but this calculation can be slow.  Setting this option to false returns the diagonal matrix and is computationally quicker. 
 
 We can look at the first 10 observations of input data to get an idea of what the data looks like:
 ```{r} 
@@ -112,7 +111,6 @@ cols <- c('DATE', 'TICKER', 'RETURN', exposure.vars)
 stock[1:10, ..cols]
 
 ```
-
 
 The function outputs are as follows:
 
@@ -214,15 +212,7 @@ We ran the attribution from 8/31/2019 to 9/16/2019, so we see a line for each da
 The summary output is probably more relevant for us.  Here is the full output of returns.table: 
 
 ```{r} 
-
 cfit$returns.table
-
-
-cfit$returns.table$Residual[2]
-cfit$returns.table$Portfolio.Return[2]
-
-
-
 ```
 
 
