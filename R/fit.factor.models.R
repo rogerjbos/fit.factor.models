@@ -106,7 +106,6 @@ fit.data.cast <- function(datMat, item, id.var, date.var, reverse = FALSE) {
 #' @return data.table
 #'
 #' @examples
-#' load("data/Stock.df.Rdata")
 #' fit <- fit.attribution(fitdata = stock, date.var = 'DATE', id.var = 'TICKER', return.var = 'RETURN',
 #'   weight.var = 'LOG.MARKETCAP', exposure.vars = c('NET.SALES','BOOK2MARKET','GICS.SECTOR'),
 #'   rob.stats = TRUE, full.resid.cov = FALSE, z.score = FALSE,
@@ -296,6 +295,7 @@ fit.attribution <- function(fitdata, date.var, id.var, return.var, exposure.vars
               id.var = id.var,
               id.names = id.names,
               factor.names = factor.names,
+              exposures.char = exposures.char,
               time.periods = TP))
 
 
@@ -312,7 +312,6 @@ fit.attribution <- function(fitdata, date.var, id.var, return.var, exposure.vars
 #' @return list of periodic returns and summary returns
 #'
 #' @examples
-#' load("fit.factor.models/data/Stock.df.Rdata")
 #' stock <- as.data.table(stock)
 #' stock[TICKER %in% c('SUNW','ORCL','MSFT'), portfolioWeight := 1/3, by=DATE]
 #' stock[is.na(portfolioWeight), portfolioWeight := 0]
@@ -425,7 +424,6 @@ fit.contribution <- function(fit, bm.wgt.var, port.wgt.var) {
 #' *fitdata* is the matrix of input data.
 #'
 #' @examples
-#' load("fit.factor.models/data/Stock.df.Rdata")
 #' fit <- fit.fundamental(fitdata = stock, date.var = 'DATE', id.var = 'TICKER', return.var = 'RETURN',
 #'                        weight.var = 'LOG.MARKETCAP', exposure.vars = c('NET.SALES','BOOK2MARKET','GICS.SECTOR'),
 #'                        rob.stats = TRUE, z.score = FALSE, stdReturn = TRUE, calc.inv = TRUE, cov.wgt = FALSE, parkinson = FALSE)
@@ -463,7 +461,9 @@ fit.fundamental <- function (fitdata, date.var, id.var, return.var, exposure.var
                         full.resid.cov = FALSE,
                         z.score = z.score,
                         stdReturn = stdReturn)
-  
+
+  exposures.char <- fa$exposures.char
+
   # Get factor returns from fit.attribution
   factor.returns <- fa$factor.returns
   factor.returns[is.na(factor.returns)] <- 0
@@ -520,7 +520,8 @@ fit.fundamental <- function (fitdata, date.var, id.var, return.var, exposure.var
               factor.cov = factor.cov,
               cov.mat = cov.mat,
               inverse.cov = inverse.cov,
-              fitdata = fitdata))
+              fitdata = fitdata,
+              exposures.char = exposures.char))
   
 }
 
@@ -544,7 +545,6 @@ fit.fundamental <- function (fitdata, date.var, id.var, return.var, exposure.var
 #' *id* is the vector is ids representing the securities in the estimation universe.
 #'
 #' @examples
-#' load("data/Stock.df.Rdata")
 #' retMat <- fit.data.cast(stock, item='RETURN', id.var = 'TICKER', date.var = 'DATE', reverse = TRUE)
 #' fit <- fit.statistical(retMat)
 #' names(fit)
@@ -667,7 +667,6 @@ fit.statistical <- function (retMat, use.cor = FALSE, erank = FALSE) {
 #'
 #' ### Statistical
 #'
-#' load("fit.factor.models/data/Stock.df.Rdata")
 #' retMat <- fit.data.cast(stock, item='RETURN', id.var = 'TICKER', date.var = 'DATE', reverse = TRUE)
 #' fit <- fit.statistical(retMat)
 #'
@@ -687,7 +686,6 @@ fit.statistical <- function (retMat, use.cor = FALSE, erank = FALSE) {
 #'
 #' ### Fundamental
 #'
-#' load("fit.factor.models/data/Stock.df.Rdata")
 #' stock <- as.data.table(stock)
 #' stock[TICKER %in% c('SUNW','ORCL','MSFT'), portfolioWeight := 1/3, by=DATE]
 #' stock[is.na(portfolioWeight), portfolioWeight := 0]
@@ -815,28 +813,36 @@ fit.risk.summary.report <- function(riskmod, bm.wgt.var, port.wgt.var, filename 
   
   riskTbl <- data.table(Portfolio.Holdings = wgt[portWgt != 0, .N],
                         Benchmark.Holdings = wgt[benchWgt != 0, .N],
-                        Total.Risk = round(AR.P, 4),
-                        Benchmark.Risk = round(AR.B, 4),
-                        Active.Risk = round(TE, 4),
-                        R.Squared = round(R2, 4),
-                        Predicted.Beta = round(predicted.beta, 4),
-                        Specific.Risk.Pct = round(1 - pct.P.FR, 4),
-                        Factor.Risk.Pct = round(pct.P.FR, 4))
+                        Total.Risk = round(AR.P * 100, 2),
+                        Benchmark.Risk = round(AR.B * 100, 2),
+                        Predicted.Tracking.Error = round(TE * 100, 2),
+                        #R.Squared = round(R2, 2),
+                        Predicted.Beta = round(predicted.beta, 2),
+                        Specific.Risk.Pct = round(100 - pct.P.FR * 100, 2),
+                        Factor.Risk.Pct = round(pct.P.FR * 100, 2))
   
-  varianceTbl <- data.table('Factor %' = round(pct.P.FR.factor, 4))
+  if (is.character(riskmod$exposures.char)) {
+    echar <- unique(fa$fitdata[, fa$exposures.char, with=FALSE])
+    # echarsum <  sum(pct.P.FR.factor[colnames(pct.P.FR.factor) %in% unlist(echar)])
+    echarTbl <- data.table(echar = sum(pct.P.FR.factor[colnames(pct.P.FR.factor) %in% unlist(echar)])) * 100
+    names(echarTbl) <- fa$exposures.char %+% ".Risk.Pct"
+    riskTbl <- cbind(riskTbl, echarTbl)
+  }
+
+  varianceTbl <- data.table('Factor %' = round(pct.P.FR.factor, 2) * 100)
   if (names(varianceTbl)[1] == "Factor %.V1") names(varianceTbl) <- gsub(".V", ".Blind", names(varianceTbl))
   
-  exposureTbl <- data.table(Act.Expo = round(expo.active, 4))
+  exposureTbl <- data.table(Act.Expo = round(expo.active * 100, 4))
   if (names(exposureTbl)[1] == "Act.Expo.V1") names(exposureTbl) <- gsub(".V", ".Blind", names(exposureTbl))
   
   securityTbl <- data.table(Security = id,
-                            Portfolio.Wgt = round(wgt[, portWgt], 4),
-                            Benchmark.Wgt = round(wgt[, benchWgt], 4),
-                            Active.Wgt = round(wgt[, activeWgt], 4),
-                            Ivol = round(riskmod$specific.risk, 4),
-                            Predicted.Beta = round(pred.beta, 4),
-                            Risk.Contribution = round(TR.S / TR.P, 4),
-                            Fact.Expo = round(fact.load, 4))
+                            Portfolio.Wgt = round(wgt[, portWgt] * 100, 2) ,
+                            Benchmark.Wgt = round(wgt[, benchWgt] * 100, 2),
+                            Active.Wgt = round(wgt[, activeWgt] * 100, 2),
+                            Ivol = round(riskmod$specific.risk * 100, 2),
+                            Predicted.Beta = round(pred.beta, 2),
+                            Risk.Contribution = round((TR.S / TR.P) * 100, 2),
+                            Fact.Expo = round(fact.load * 100, 2))
   if (names(securityTbl)[8]=='Fact.Expo.V1') names(securityTbl) <- gsub(".V", ".Blind", names(securityTbl))
   #names(securityTbl)
   
