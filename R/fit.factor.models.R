@@ -103,8 +103,27 @@ fit.data.cast <- function(datMat, item, id.var, date.var, reverse = FALSE) {
 #' @param strReturns logical
 #' @param resid.EWMA logical
 #'
-#' @return data.table
-#'
+#' @return An object with S3 class "fir.factor.models" containing:
+#' @return beta a matrix of security exposures for the last time period
+#' @return factor.returns a matrix of factor returns by date
+#' @return residuals a list of regression residuals by date
+#' @return r2 a vector of regression R-squared values
+#' @return factor.cov a matrix of factor variances / covariances
+#' @return resid.cov a matrix of residual variances / covariances
+#' @return return.cov a matrix of return variances / covariances
+#' @return resid.var a vector of residual variances
+#' @return call the function call
+#' @return fitdata a data.table of data to use for attribution
+#' @return exposure.vars a vector of string names of factors to use for attribution
+#' @return weight.var = weight.var,
+#' @return date.var a string name of the column with dates
+#' @return return.var a string name of the column with returns
+#' @return id.var a string name of the column with IDs
+#' @return id.names a vector of security names or IDs
+#' @return factor.names a vector of factor names
+#' @return exposures.char the name of the grouping column, if applicable
+#' @return time.periods a vector of the dates
+#' 
 #' @examples
 #' fit <- fit.attribution(fitdata = stock, date.var = 'DATE', id.var = 'TICKER', return.var = 'RETURN',
 #'   weight.var = 'LOG.MARKETCAP', exposure.vars = c('NET.SALES','BOOK2MARKET','GICS.SECTOR'),
@@ -278,27 +297,28 @@ fit.attribution <- function(fitdata, date.var, id.var, return.var, exposure.vars
   return.cov <- beta %*% t(factor.cov) %*% t(beta) + resid.cov
 
   # Create list of return values.
-  return(list(beta = beta,
-              factor.returns = factor.returns,
-              residuals = residuals,
-              r2 = r2,
-              factor.cov = factor.cov,
-              resid.cov = resid.cov,
-              return.cov = return.cov,
-              resid.var = resid.var,
-              call = this.call,
-              fitdata = fitdata,
-              exposure.vars = exposure.vars,
-              weight.var = weight.var,
-              date.var = date.var,
-              return.var = return.var,
-              id.var = id.var,
-              id.names = id.names,
-              factor.names = factor.names,
-              exposures.char = exposures.char,
-              time.periods = TP))
+  val <- structure(list(beta = beta,
+      factor.returns = factor.returns,
+      residuals = residuals,
+      r2 = r2,
+      factor.cov = factor.cov,
+      resid.cov = resid.cov,
+      return.cov = return.cov,
+      resid.var = resid.var,
+      call = this.call,
+      fitdata = fitdata,
+      exposure.vars = exposure.vars,
+      weight.var = weight.var,
+      date.var = date.var,
+      return.var = return.var,
+      id.var = id.var,
+      id.names = id.names,
+      factor.names = factor.names,
+      exposures.char = exposures.char,
+      time.periods = TP),
+    class = "fit.factor.models")
 
-
+  val
   
 }
 
@@ -309,8 +329,10 @@ fit.attribution <- function(fitdata, date.var, id.var, return.var, exposure.vars
 #' @param bm.wgt.var string name of benchmark weight column (in fitdata passed to \code{"fit.attribution"})
 #' @param port.wgt.var string name of portfolio weight column (in fitdata passed to \code{"fit.attribution"})
 #'
-#' @return list of periodic returns and summary returns
-#'
+#' @return An object with S3 class "fir.factor.models" containing:
+#' @return returns a table of periodic returns
+#' @return returns.table a table of aggregate and annualized returns
+#' 
 #' @examples
 #' stock <- as.data.table(stock)
 #' stock[TICKER %in% c('SUNW','ORCL','MSFT'), portfolioWeight := 1/3, by=DATE]
@@ -395,10 +417,14 @@ fit.contribution <- function(fit, bm.wgt.var, port.wgt.var) {
   returns.table$Active.Return <- returns.table$Portfolio.Return - returns.table$Benchmark.Return
   returns.table$Residual[1] <- returns.table$Active.Return[1] - sum(returns.table[1, 1:(match("Residual", names(returns.table))-1)])
   
-  return(list(returns = round(returns_orig, 4), returns.table = round(returns.table, 4)))
+  val <- structure(list(returns = round(returns_orig, 4), 
+                        returns.table = round(returns.table, 4)),
+        class="fit.factor.models")
+  val
 }
 
-#' @description Function to calculate fundamental risk model. The code has been adapted from Kakushadze and Yu (2016).
+#' @description Function to calculate a fundamental risk model.
+#' @title fit.fundamental
 #' @name fit.fundamental
 #' @encoding UTF-8
 #' @concept factor models for attribution and risk
@@ -414,19 +440,21 @@ fit.contribution <- function(fit, bm.wgt.var, port.wgt.var) {
 #' @param cov.wgt logical
 #' @param parkinson logical
 #'
-#' @return list of risk model outputs where
-#' *specific.risk* is the vector idiosyncratic volatility (or specific risk),
-#' *factor.returns* is the matrix of factor returns estimated by the risk model,
-#' *factor.loadings* is the matrix of factor loadings,
-#' *factor.cov* is the matrix of factor covariances,
-#' *cov.mat** is the matrix of variance/covariances,
-#' *inverse.cov* is the inverse of the variance/covariance matrix, and
-#' *fitdata* is the matrix of input data.
+#' @return An object with S3 class "fir.factor.models" containing:
+#' @return specific.risk is the vector idiosyncratic volatility (or specific risk),
+#' @return factor.returns is the matrix of factor returns estimated by the risk model,
+#' @return factor.loadings is the matrix of factor loadings,
+#' @return factor.cov is the matrix of factor covariances,
+#' @return cov.mat is the matrix of variance/covariances,
+#' @return inverse.cov is the inverse of the variance/covariance matrix, and
+#' @return fitdata is the matrix of input data.
 #'
 #' @examples
 #' fit <- fit.fundamental(fitdata = stock, date.var = 'DATE', id.var = 'TICKER', return.var = 'RETURN',
 #'                        weight.var = 'LOG.MARKETCAP', exposure.vars = c('NET.SALES','BOOK2MARKET','GICS.SECTOR'),
 #'                        rob.stats = TRUE, z.score = FALSE, stdReturn = TRUE, calc.inv = TRUE, cov.wgt = FALSE, parkinson = FALSE)
+#' @references Kakushadze, Zura and Yu, Willie, Multifactor Risk Models and Heterotic CAPM (January 24, 2016). The Journal of Investment Strategies 5(4) (2016) 1-49. Available at SSRN: \url{https://ssrn.com/abstract=2722093}
+#' @references Kakushadze, Zura and Yu, Willie, Multifactor Risk Models and Heterotic CAPM (January 24, 2016). The Journal of Investment Strategies 5(4) (2016) 1-49. Available at SSRN: \url{https://ssrn.com/abstract=2722093}
 #' @references Kakushadze, Zura and Yu, Willie, Multifactor Risk Models and Heterotic CAPM (January 24, 2016). The Journal of Investment Strategies 5(4) (2016) 1-49. Available at SSRN: \url{https://ssrn.com/abstract=2722093}
 #' @author Roger J. Bos, \email{roger.bos@@gmail.com}
 #' @export
@@ -514,18 +542,20 @@ fit.fundamental <- function (fitdata, date.var, id.var, return.var, exposure.var
     inverse.cov <- NULL
   }
   
-  return(list(specific.risk = sqrt(spec.var),
+  val <- structure(list(specific.risk = sqrt(spec.var),
               factor.returns = factor.returns,
               factor.loadings = factor.loadings,
               factor.cov = factor.cov,
               cov.mat = cov.mat,
               inverse.cov = inverse.cov,
               fitdata = fitdata,
-              exposures.char = exposures.char))
+              exposures.char = exposures.char),
+          class = "fit.factor.models")
+  val
   
 }
 
-#' @description Function to calculate statistical risk model (using princiap component analysis). The code has been adapted from Kakushadze and Yu (2017).
+#' @description Function to calculate a statistical risk model (using principal component analysis). The code has been adapted from Kakushadze and Yu (2017).
 #' @name fit.statistical
 #' @title fit.statistical
 #' @encoding UTF-8
@@ -534,15 +564,15 @@ fit.fundamental <- function (fitdata, date.var, id.var, return.var, exposure.var
 #' @param use.cor boolean to use correlation matrix instead of covariance matrix, default is FALSE
 #' @param erank boolean to use the effective rank instead of minimization algorithm, default is FALSE
 #'
-#' @return list of risk model outputs where
-#' *specific.risk* is the vector idiosyncratic volatility (or specific risk),
-#' *factor.loadings* is the matrix of loadings,
-#' *factor.cov* is the matrix of factor covariances,
-#' *cov.mat** is the matrix of variance/covariances,
-#' *inverse.cov* is the inverse of the variance/covariance matrix,
-#' *princomp* is the matrix of principal components (eigenvectors) of the fitted risk model,
-#' *dates* is the vector of the dates used to estimate the risk model, and
-#' *id* is the vector is ids representing the securities in the estimation universe.
+#' @return An object with S3 class "fir.factor.models" containing:
+#' @return specific.risk is the vector idiosyncratic volatility (or specific risk),
+#' @return factor.loadings is the matrix of loadings,
+#' @return factor.cov is the matrix of factor covariances,
+#' @return cov.mat is the matrix of variance/covariances,
+#' @return inverse.cov is the inverse of the variance/covariance matrix,
+#' @return princomp is the matrix of principal components (eigenvectors) of the fitted risk model,
+#' @return dates is the vector of the dates used to estimate the risk model, and
+#' @return id is the vector is ids representing the securities in the estimation universe.
 #'
 #' @examples
 #' retMat <- fit.data.cast(stock, item='RETURN', id.var = 'TICKER', date.var = 'DATE', reverse = TRUE)
@@ -619,14 +649,17 @@ fit.statistical <- function (retMat, use.cor = FALSE, erank = FALSE) {
     inv.cov <- t(inv.cov / sigma) / sigma
   }
   
-  return(list(specific.risk = spec.risk,
+  val <- structure(list(specific.risk = spec.risk,
               factor.loadings = factor.loadings,
               factor.cov = fac.cov,
               cov.mat = cov.mat,
               inverse.cov = inv.cov,
               princomp = e$vectors[, 1:ncol(factor.loadings)],
               dates = dates,
-              id = id))
+              id = id),
+            class = "fit.factor.models")
+  val
+  
 }
 
 
@@ -639,29 +672,35 @@ fit.statistical <- function (retMat, use.cor = FALSE, erank = FALSE) {
 #' @encoding UTF-8
 #' @concept factor models for attribution and risk
 #' @param riskmod object returned by fit.fundamental() or fit.statistical()
-#' @param bm.wgt.var benchmark weights, can be either of string of the name of the variable that contains the weights or a vector of the weights
-#' @param port.wgt.var portfolio weights, can be either of string of the name of the variable that contains the weights or a vector of the weights
+#' @param bm.wgt.var data.table containing ID in the first column and benchmark weights in the second column
+#' @param port.wgt.var data.table containing ID in the first column and portfolio weights in the second column
 #' @param filename if not NULL, results will be saved to a CSV file with the given filename
 #'
+#' @return An object with S3 class "fir.factor.models" containing:
 #' @return list of portfolioTbl and securityTbl.
 #' The portfolio table contains the following data items for the portfolio:
-#' *Portfolio.Holdings* - number of portfolio holdings
-#' *Benchmark.Holdings* - number of benchmark holdings
-#' *Total.Risk* - predicted standard deviation of the portfolio, aka absolute risk
-#' *Benchmark.Risk* - predicted standard deviation of the benchmark
-#' *Active.Risk* - predicted tracing error of the portfolio to the benchmark
-#' *R.Squared* - the fraction of portfolio varinace explained by the benchmark
-#' *Predicted.Beta* - forecasted beta based on the risk model
-#' *Specific.Risk.Pct* - percent of *Total.Risk* not explaned by the risk model factors, aka idiosyncratic risk
-#' *Factor.Risk.Pct* - percent of *Total.Risk* explaned by the risk model factors
+#' @return Portfolio.Holdings number of portfolio holdings
+#' @return Benchmark.Holdings number of benchmark holdings
+#' @return Total.Risk predicted standard deviation of the portfolio, aka absolute risk
+#' @return Benchmark.Risk predicted standard deviation of the benchmark
+#' @return Active.Risk predicted tracing error of the portfolio to the benchmark
+#' @return R.Squared the fraction of portfolio varinace explained by the benchmark
+#' @return Predicted.Beta forecasted beta based on the risk model
+#' @return Specific.Risk.Pct percent of *Total.Risk* not explaned by the risk model factors, aka idiosyncratic risk
+#' @return Factor.Risk.Pct percent of *Total.Risk* explaned by the risk model factors
+#' @return Group.Risk.Pct percent of *Total.Risk* explaned by the grouping (Sector/Industry) factor, if applicable
+#' The factor table contains the following data items for each factor:
+#' @return Contribution.to.Risk each factor's contribution to risk in the portfolio
+#' @return Factor.Std.Dev each factor's volatility in the portfolio
+#' @return Active.Exposure each factor's active exposure in the portfolio
 #' The security table contains the following data items for each security:
-#' *portfolio.wgt* - each stock's weight in the portfolio
-#' *benchmark.wgt* - each stock's weight in the benchmark
-#' *active.wgt* - each stock's active weight (portfolio minus benchmark)
-#' *ivol* - each stock's idiosyncratic volatility, aka stock specific risk
-#' *predicted.beta* - each stock's predicted beta
-#' *risk.contribution* - each stock's contribution to *Total.Risk*
-#' *factor.exposures* - each stock's exposure to each factor in the risk model
+#' @return portfolio.wgt each stock's weight in the portfolio
+#' @return benchmark.wgt each stock's weight in the benchmark
+#' @return active.wgt each stock's active weight (portfolio minus benchmark)
+#' @return ivol each stock's idiosyncratic volatility, aka stock specific risk
+#' @return predicted.beta each stock's predicted beta
+#' @return risk.contribution each stock's contribution to *Total.Risk*
+#' @return factor.exposures each stock's exposure to each factor in the risk model
 #'
 #' @examples
 #'
@@ -777,7 +816,7 @@ fit.risk.summary.report <- function(riskmod, bm.wgt.var, port.wgt.var, filename 
   TE <- sqrt(TR.P) * multi
   
   # R-Squared
-  R2 <- (((AR.P^2 + AR.B^2 - TE^2) / 2) / (AR.P + AR.B))^2
+  R2 <- (((AR.P^2 + AR.B^2 - TE^2) / 2) / (AR.P * AR.B))^2
   
   # Percent Factor Risk
   pct.S.FR <- FR.S / TR.P
@@ -811,30 +850,34 @@ fit.risk.summary.report <- function(riskmod, bm.wgt.var, port.wgt.var, filename 
   pred.beta[pred.beta < -.5] <- -.5
   pred.beta[pred.beta > 3.5] <- 3.5
   
-  riskTbl <- data.table(Portfolio.Holdings = wgt[portWgt != 0, .N],
+  portfolioTbl <- data.table(Portfolio.Holdings = wgt[portWgt != 0, .N],
                         Benchmark.Holdings = wgt[benchWgt != 0, .N],
                         Total.Risk = round(AR.P * 100, 2),
                         Benchmark.Risk = round(AR.B * 100, 2),
                         Predicted.Tracking.Error = round(TE * 100, 2),
-                        #R.Squared = round(R2, 2),
+                        R.Squared = round(R2, 2),
                         Predicted.Beta = round(predicted.beta, 2),
                         Specific.Risk.Pct = round(100 - pct.P.FR * 100, 2),
                         Factor.Risk.Pct = round(pct.P.FR * 100, 2))
   
   if (is.character(riskmod$exposures.char)) {
-    echar <- unique(fa$fitdata[, fa$exposures.char, with=FALSE])
+    echar <- unique(riskmod$fitdata[, riskmod$exposures.char, with=FALSE])
     # echarsum <  sum(pct.P.FR.factor[colnames(pct.P.FR.factor) %in% unlist(echar)])
-    echarTbl <- data.table(echar = sum(pct.P.FR.factor[colnames(pct.P.FR.factor) %in% unlist(echar)])) * 100
-    names(echarTbl) <- fa$exposures.char %+% ".Risk.Pct"
-    riskTbl <- cbind(riskTbl, echarTbl)
+    echarTbl <- data.table(echar = round(sum(pct.P.FR.factor[colnames(pct.P.FR.factor) %in% unlist(echar)]) * 100, 2))
+    names(echarTbl) <- riskmod$exposures.char %+% ".Risk.Pct"
+    portfolioTbl <- cbind(portfolioTbl, echarTbl)
   }
 
-  varianceTbl <- data.table('Factor %' = round(pct.P.FR.factor, 2) * 100)
-  if (names(varianceTbl)[1] == "Factor %.V1") names(varianceTbl) <- gsub(".V", ".Blind", names(varianceTbl))
-  
-  exposureTbl <- data.table(Act.Expo = round(expo.active * 100, 4))
-  if (names(exposureTbl)[1] == "Act.Expo.V1") names(exposureTbl) <- gsub(".V", ".Blind", names(exposureTbl))
-  
+  variance <- data.table(round(pct.P.FR.factor * 100, 2))
+  if (names(variance)[1] == "V1") names(varianceTbl) <- gsub(".V", ".Blind", names(variance))
+  factorsd <- data.table(round(sqrt(diag(factcov)), 2))
+  if (names(exposure)[1] == "V1") names(exposureTbl) <- gsub(".V", ".Blind", names(exposure))
+  exposure <- data.table(round(expo.active * 100, 2))
+  if (names(exposure)[1] == "V1") names(exposureTbl) <- gsub(".V", ".Blind", names(exposure))
+  factorTbl <- cbind(t(variance), factorsd, t(exposure))
+  rownames(factorTbl) <- names(variance)
+  colnames(factorTbl) <- c("Percent.Variance","Factor.Std.Dev","Active.Exposure")
+
   securityTbl <- data.table(Security = id,
                             Portfolio.Wgt = round(wgt[, portWgt] * 100, 2) ,
                             Benchmark.Wgt = round(wgt[, benchWgt] * 100, 2),
@@ -847,17 +890,21 @@ fit.risk.summary.report <- function(riskmod, bm.wgt.var, port.wgt.var, filename 
   #names(securityTbl)
   
   if (!is.null(filename)) {
+    #filename="test4.csv"
     write.table(x="Portfolio Risk Summary generated " %+% today(), file=filename, append=FALSE,row.names = FALSE, col.names = FALSE, sep=",")
     write.table(x="Risk Characteristics",                          file=filename, append=TRUE, row.names = FALSE, col.names = FALSE, sep=",")
-    write.table(x=t(riskTbl),                                      file=filename, append=TRUE, row.names = TRUE,  col.names = FALSE, sep=",")
-    write.table(x="Risk as % of Variance",                         file=filename, append=TRUE, row.names = FALSE, col.names = FALSE, sep=",")
-    write.table(x=t(varianceTbl),                                  file=filename, append=TRUE, row.names = TRUE,  col.names = FALSE, sep=",")
-    write.table(x="Active Exposure",                               file=filename, append=TRUE, row.names = FALSE, col.names = FALSE, sep=",")
-    write.table(x=t(exposureTbl),                                  file=filename, append=TRUE, row.names = TRUE,  col.names = FALSE, sep=",")
+    write.table(x=t(portfolioTbl),                                 file=filename, append=TRUE, row.names = TRUE,  col.names = FALSE, sep=",")
+    write.table(x="Factor Risk as % of Variance",                  file=filename, append=TRUE, row.names = FALSE, col.names = FALSE, sep=",")
+    write.table(x=factorTbl,                                       file=filename, append=TRUE, row.names = TRUE,  col.names = TRUE, sep=",")
     write.table(x="Security Table",                                file=filename, append=TRUE, row.names = FALSE, col.names = FALSE, sep=",")
     suppressWarnings(write.table(x=securityTbl,                    file=filename, append=TRUE, row.names = FALSE, sep=","))
   }
   
-  return(list(portfolioTbl = cbind(riskTbl, varianceTbl, exposureTbl), securityTbl = securityTbl))
+  val <- structure(list(portfolioTbl = portfolioTbl,
+            factorTbl = factorTbl, 
+            securityTbl = securityTbl),
+          class = "fit.factor.models")
+  val  
+  
 }
 
