@@ -524,6 +524,20 @@ fit.fundamental <- function (fitdata, date.var, id.var, return.var, exposure.var
   
 }
 
+.calc.erank <- function(x, excl.first) {
+  take <- x > 0
+  x <- x[take]
+  if(excl.first) x <- x[-1]
+  
+  p <- x / sum(x)
+  h <- - sum(p * log(p))
+  er <- exp(h)
+  if (excl.first) er <- er + 1
+  
+  return(er)
+}
+
+
 #' @description Function to calculate statistical risk model (using princiap component analysis). The code has been adapted from Kakushadze and Yu (2017).
 #' @name fit.statistical
 #' @title fit.statistical
