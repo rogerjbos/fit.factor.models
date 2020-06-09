@@ -596,12 +596,19 @@ fit.fundamental <- function (fitdata, date.var, id.var, return.var, exposure.var
 #' @references Kakushadze, Zura and Yu, Willie, Statistical Risk Models (February 14, 2016). The Journal of Investment Strategies 6(2) (2017) 1-40. Available at SSRN: \url{https://ssrn.com/abstract=2732453}
 #' @author Roger J. Bos, \email{roger.bos@@gmail.com}
 #' @export
-fit.statistical <- function (retMat, use.cor = FALSE, erank = FALSE) {
+fit.statistical <- function (retMat, use.cor = FALSE, erank = TRUE) {
   
   fitdata <- retMat
-  dates <- names(retMat[, -1])
-  id <- retMat[, 1]
-  retMat <- as.matrix(retMat[, -1])
+  if (.row_names_info(retMat) < 0) { # rownames generated automatically means ids in first column
+    dates <- names(retMat[, -1])
+    id <- retMat[, 1]
+    retMat <- as.matrix(retMat[, -1])
+  } else { # rownames are ids
+    dates <- colnames(retMat)
+    id <- rownames(retMat)
+    retMat <- as.matrix(retMat)
+  }
+  
   sigma <- apply(retMat, 1, sd)
   # prevent sigma from being negative
   sigma[sigma == 0] <- mean(sigma[sigma > 0])
@@ -768,7 +775,7 @@ fit.risk.summary.report <- function(riskmod, bm.wgt.var, port.wgt.var, filename 
   # Annualization factor
   if (!is.null(riskmod$dates)) {
     multi <- ifelse(abs(mean(diff(as.Date(riskmod$dates)), na.rm=TRUE)) >= 28, sqrt(12), sqrt(250))
-  } else {
+  } else{
     multi <- ifelse(abs(mean(diff(as.Date(row.names(riskmod$factor.returns))), na.rm=TRUE)) >= 28, sqrt(12), sqrt(250))
   }
   
@@ -884,11 +891,11 @@ fit.risk.summary.report <- function(riskmod, bm.wgt.var, port.wgt.var, filename 
   }
 
   variance <- data.table(round(pct.P.FR.factor * 100, 2))
-  if (names(variance)[1] == "V1") names(varianceTbl) <- gsub(".V", ".Blind", names(variance))
+  # if (names(variance)[1] == "V1") names(varianceTbl) <- gsub(".V", ".Blind", names(variance))
   factorsd <- data.table(round(sqrt(diag(factcov)), 2))
-  if (names(exposure)[1] == "V1") names(exposureTbl) <- gsub(".V", ".Blind", names(exposure))
+  # if (names(exposure)[1] == "V1") names(exposureTbl) <- gsub(".V", ".Blind", names(exposure))
   exposure <- data.table(round(expo.active * 100, 2))
-  if (names(exposure)[1] == "V1") names(exposureTbl) <- gsub(".V", ".Blind", names(exposure))
+  # if (names(exposure)[1] == "V1") names(exposureTbl) <- gsub(".V", ".Blind", names(exposure))
   factorTbl <- cbind(t(variance), factorsd, t(exposure))
   rownames(factorTbl) <- names(variance)
   colnames(factorTbl) <- c("Percent.Variance","Factor.Std.Dev","Active.Exposure")
