@@ -555,7 +555,6 @@ fit.fundamental <- function (fitdata, date.var, id.var, return.var, exposure.var
   
 }
 
-<<<<<<< HEAD
 .calc.erank <- function(x, excl.first) {
   take <- x > 0
   x <- x[take]
